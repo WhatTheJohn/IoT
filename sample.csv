@@ -1,0 +1,16 @@
+Timestamp,Date,Time,Soil Moisture,Temperature,Light,Nitrogen,Phosphorus,Potassium,Pump Active,Alert,Algorithm State
+2025-12-28T08:00:00,2025-12-28,08:00:00,75.0,24.5,200,41,30,52,False,System Normal,Optimal
+2025-12-28T09:00:00,2025-12-28,09:00:00,74.2,26.1,450,40,31,50,False,System Normal,Optimal
+2025-12-28T10:00:00,2025-12-28,10:00:00,73.1,28.4,700,42,29,51,False,System Normal,Optimal
+2025-12-28T11:00:00,2025-12-28,11:00:00,71.5,30.2,900,40,30,50,False,System Normal,Optimal
+2025-12-28T12:00:00,2025-12-28,12:00:00,69.8,32.5,1100,39,30,49,False,System Normal,Optimal
+2025-12-28T13:00:00,2025-12-28,13:00:00,67.9,34.2,1050,40,30,50,False,High Temp Warning,Heat Stress
+2025-12-28T14:00:00,2025-12-28,14:00:00,65.5,33.8,950,41,30,50,False,System Normal,Optimal
+2025-12-28T15:00:00,2025-12-28,15:00:00,63.1,31.5,800,40,30,50,False,System Normal,Optimal
+2025-12-28T16:00:00,2025-12-28,16:00:00,61.0,29.0,600,40,30,50,False,System Normal,Optimal
+2025-12-28T17:00:00,2025-12-28,17:00:00,59.5,27.5,300,40,30,50,False,System Normal,Optimal
+2025-12-28T18:00:00,2025-12-28,18:00:00,58.2,26.0,100,40,30,50,False,System Normal,Optimal
+2025-12-28T19:00:00,2025-12-28,19:00:00,57.1,25.0,0,40,30,50,False,System Normal,Optimal
+2025-12-28T20:00:00,2025-12-28,20:00:00,56.5,24.2,0,40,30,50,False,System Normal,Optimal
+2025-12-29T10:00:00,2025-12-29,10:00:00,24.5,29.0,800,40,30,50,False,System Normal,Optimal
+2025-12-29T10:15:00,2025-12-29,10:15:00,65.0,29.2,810,40,30,50,True,System Normal,Critical: Pulse Irrigation

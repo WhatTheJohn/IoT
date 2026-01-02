@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Willow Smart Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #56ab2f; 
+            --primary-dark: #3b8d18;
+            --bg-color: #f2f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1a1d1f;
+            --text-sub: #6f767e;
+            --danger: #ff6b6b;
+            --warning: #feca57;
+            --blue: #54a0ff;
+            --shadow: 0 8px 24px rgba(0,0,0,0.05);
+            --radius: 24px;
+            --nav-height: 80px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            background: var(--bg-color);
+            position: relative;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: var(--nav-height);
+            display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease-in;
+        }
+        .page.active { display: block; opacity: 1; }
+
+        /* --- HEADER --- */
+        .header {
+            padding: 40px 25px 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header h1 { margin: 0; font-size: 1.8rem; font-weight: 700; color: var(--text-main); }
+        
+        .header-action {
+            width: 45px; height: 45px; 
+            border-radius: 14px; 
+            background: var(--text-main);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .header-action:active { transform: scale(0.95); }
+
+        /* --- HERO SECTION --- */
+        .hero-section { padding: 0 25px; margin-bottom: 25px; }
+        
+        .plant-card {
+            background: var(--card-bg); border-radius: var(--radius); padding: 20px;
+            box-shadow: var(--shadow); display: flex; align-items: center; gap: 20px; position: relative;
+            cursor: pointer; transition: transform 0.2s;
+        }
+        .plant-card:active { transform: scale(0.98); }
+
+        .plant-img {
+            width: 80px; height: 100px; background: #e1f0da; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center; font-size: 2.5rem;
+        }
+        .power-badge {
+            position: absolute; top: 15px; right: 15px;
+            background: rgba(86, 171, 47, 0.1); color: var(--primary-dark);
+            padding: 5px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;
+            display: flex; align-items: center; gap: 4px;
+        }
+        
+        .water-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 48px; height: 48px; border-radius: 16px;
+            background: #e3f2fd; color: var(--blue); border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 4px 10px rgba(84, 160, 255, 0.2); transition: all 0.2s;
+        }
+        .water-btn:active { transform: scale(0.95); }
+        .water-btn.active { background: var(--blue); color: white; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(84, 160, 255, 0.7); } 100% { box-shadow: 0 0 0 10px rgba(84, 160, 255, 0); } }
+
+        /* --- SENSORS --- */
+        .section-title { padding: 0 25px; margin-bottom: 15px; font-weight: 600; font-size: 1.1rem; color: var(--text-main); }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 0 25px; margin-bottom: 25px; }
+        .sensor-card {
+            background: var(--card-bg); border-radius: 20px; padding: 18px;
+            box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px;
+            transition: transform 0.2s;
+        }
+        .sensor-card.warning-active { background: var(--danger); color: white; }
+        .sensor-card.warning-active .val, .sensor-card.warning-active .lbl { color: white !important; }
+        .sensor-card.warning-active .icon-circle { background: rgba(255,255,255,0.2); color: white; }
+
+        .icon-circle { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .val { font-size: 1.3rem; font-weight: 700; }
+        .lbl { font-size: 0.8rem; color: var(--text-sub); font-weight: 500; }
+
+        .c-water .icon-circle { background: #e3f2fd; color: #2196f3; }
+        .c-light .icon-circle { background: #fff3e0; color: #ff9800; }
+        .c-temp .icon-circle  { background: #ffebee; color: #e53935; }
+        .c-npk .icon-circle   { background: #f3e5f5; color: #9c27b0; }
+
+        /* --- CHART WRAPPER --- */
+        .chart-wrapper {
+            background: var(--card-bg); margin: 0 25px; padding: 20px;
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            display: flex; justify-content: center;
+        }
+
+        /* --- NOTIFICATIONS --- */
+        .notif-list { padding: 0 25px; display: flex; flex-direction: column; gap: 15px; }
+        .notif-item {
+            background: white; padding: 15px; border-radius: 18px; display: flex; align-items: center; gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03); animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .notif-icon { width: 45px; height: 45px; border-radius: 12px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .notif-content { flex: 1; }
+        .notif-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
+        .notif-msg { font-size: 0.8rem; color: var(--text-sub); line-height: 1.3; }
+        .notif-time { font-size: 0.7rem; color: #999; margin-top: 5px; text-align: right; }
+        .type-critical .notif-icon { background: #ffebee; color: var(--danger); }
+        .type-warning .notif-icon { background: #fff8e1; color: var(--warning); }
+        .type-info .notif-icon { background: #e3f2fd; color: var(--blue); }
+
+        /* --- SETTINGS --- */
+        .settings-group { background: white; margin: 0 25px 20px 25px; border-radius: 20px; padding: 10px; box-shadow: var(--shadow); }
+        .setting-item { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-item span { font-weight: 500; font-size: 0.95rem; }
+
+        /* --- BOTTOM NAV --- */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: var(--nav-height);
+            background: white; display: flex; justify-content: space-around; align-items: center;
+            border-top-left-radius: 30px; border-top-right-radius: 30px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.05); z-index: 100;
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #b0b0b0; cursor: pointer; width: 60px; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item .material-icons-round { font-size: 28px; }
+        .nav-item span { font-size: 0.7rem; font-weight: 600; }
+
+        /* --- MODAL STYLES --- */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .modal-content { background: white; width: 85%; max-width: 340px; border-radius: 28px; padding: 25px; text-align: center; }
+        .modal-header { display: flex; justify-content: flex-end; margin-bottom: 5px; }
+        .close-icon { cursor: pointer; color: #999; padding: 5px; transition: color 0.2s; }
+        .close-icon:hover { color: var(--danger); }
+        .modal h3 { margin: 5px 0 10px 0; color: var(--text-main); }
+        .modal p { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px; }
+        .modal input { width: 100%; padding: 14px; border: 2px solid #f0f0f0; border-radius: 14px; margin-bottom: 10px; outline: none; }
+        .modal input:focus { border-color: var(--primary); }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn { flex: 1; padding: 14px; border: none; border-radius: 14px; font-weight: 600; font-size: 1rem; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: #f0f0f0; color: var(--text-sub); }
+        .btn-danger { background: var(--blue); color: white; }
+        .spinner { display: none; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div id="page-home" class="page active">
+            <div class="header">
+                <div>
+                    <h1>Willow</h1>
+                    <p style="margin: 0; font-size: 0.85rem; color: #888;" id="system-date">Loading...</p>
+                </div>
+                <div class="header-action" onclick="openModal('deviceModal')">
+                    <span class="material-icons-round">add</span>
+                </div>
+            </div>
+
+            <div class="hero-section">
+                <div class="plant-card" onclick="openHistoryModal()">
+                    <div class="power-badge" id="power-badge">
+                        <span class="material-icons-round" style="font-size:14px">bolt</span>
+                        <span id="battery-txt">--%</span>
+                    </div>
+                    <div class="plant-img">🌿</div>
+                    <div class="plant-info">
+                        <h2 style="margin:0;">Monstera</h2>
+                        <div style="font-size: 0.85rem; color: #888; margin-top: 4px;">Status: <span style="color:var(--primary); font-weight:600;">Healthy</span></div>
+                        <div style="font-size: 0.7rem; color: #bbb; margin-top: 2px;">Tap for history</div>
+                    </div>
+                    <button class="water-btn" id="mainWaterBtn" onclick="event.stopPropagation(); openModal('waterModal')">
+                        <span class="material-icons-round">water_drop</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="section-title">Live Sensors</div>
+            <div class="grid">
+                <div class="sensor-card c-water" id="card-soil">
+                    <div class="icon-circle"><span class="material-icons-round">water_drop</span></div>
+                    <div><div class="val" id="soil-val">--%</div><div class="lbl">Moisture</div></div>
+                </div>
+                <div class="sensor-card c-light" id="card-light">
+                    <div class="icon-circle"><span class="material-icons-round">wb_sunny</span></div>
+                    <div><div class="val" id="light-val">-- lx</div><div class="lbl">Light</div></div>
+                </div>
+                <div class="sensor-card c-temp" id="card-temp">
+                    <div class="icon-circle"><span class="material-icons-round">thermostat</span></div>
+                    <div><div class="val" id="temp-val">--°C</div><div class="lbl">Temp</div></div>
+                </div>
+                <div class="sensor-card c-npk" id="card-npk">
+                    <div class="icon-circle"><span class="material-icons-round">eco</span></div>
+                    <div><div class="val" id="npk-val">--</div><div class="lbl">NPK Status</div></div>
+                </div>
+            </div>
+
+            <div class="section-title">Statistics</div>
+            <div class="chart-wrapper">
+                <canvas id="plantChart" width="900" height="630" style="display: block; box-sizing: border-box; height: 210px; width: 300px;"></canvas>
+            </div>
+        </div>
+
+        <div id="page-notif" class="page">
+            <div class="header">
+                <h1>Notifications</h1>
+                <div class="header-action" onclick="clearNotifications()">
+                    <span class="material-icons-round" style="font-size: 20px;">delete_outline</span>
+                </div>
+            </div>
+            <div class="notif-list" id="notification-container">
+            </div>
+        </div>
+
+        <div id="page-settings" class="page">
+            <div class="header">
+                <h1>Settings</h1>
+            </div>
+            
+            <div class="section-title">Device</div>
+            <div class="settings-group">
+                <div class="setting-item">
+                    <span>Plant Profile</span>
+                    <span style="color:#888;">Monstera ></span>
+                </div>
+                <div class="setting-item">
+                    <span>Pump Calibration</span>
+                    <span style="color:#888;">5s ></span>
+                </div>
+            </div>
+
+            <div class="section-title">Preferences</div>
+            <div class="settings-group">
+                <div class="setting-item">
+                    <span>Notifications</span>
+                    <span style="color:var(--primary);">On</span>
+                </div>
+                <div class="setting-item">
+                    <span>Theme</span>
+                    <span style="color:#888;">Light ></span>
+                </div>
+                <div class="setting-item">
+                    <span>App Version</span>
+                    <span style="color:#888;">v1.2.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="switchPage('home', this)">
+                <span class="material-icons-round">dashboard</span>
+                <span>Home</span>
+            </div>
+            <div class="nav-item" onclick="switchPage('notif', this)">
+                <span class="material-icons-round">notifications</span>
+                <span>Alerts</span>
+            </div>
+            <div class="nav-item" onclick="switchPage('settings', this)">
+                <span class="material-icons-round">settings</span>
+                <span>More</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="modal" id="deviceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="material-icons-round close-icon" onclick="closeModal('deviceModal')">close</span>
+            </div>
+            <span class="material-icons-round" style="font-size: 3.5rem; color: var(--primary); margin-bottom:15px;">qr_code_scanner</span>
+            <h3>Add New Device</h3>
+            <p>Enter the Serial ID found on your device.</p>
+            <input type="text" id="deviceIdInput" placeholder="e.g. WLW-2025-X89">
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closeModal('deviceModal')">Cancel</button>
+                <button class="btn btn-primary" id="btnConnect" onclick="connectDevice()">
+                    <span id="btnText">Connect</span>
+                    <div class="spinner" id="btnSpinner"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="waterModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="material-icons-round close-icon" onclick="closeModal('waterModal')">close</span>
+            </div>
+            <span class="material-icons-round" style="font-size: 3.5rem; color: var(--blue); margin-bottom:15px;">water</span>
+            <h3>Manual Watering</h3>
+            <p>Are you sure you want to turn on the pump for <b>5 seconds</b>?</p>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closeModal('waterModal')">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmWatering()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="historyModal">
+        <div class="modal-content" style="width: 90%; max-width: 400px;">
+            <div class="modal-header">
+                <span class="material-icons-round close-icon" onclick="closeModal('historyModal')">close</span>
+            </div>
+            <h3 style="margin-bottom: 5px;">Historical Stats</h3>
+            <p id="csv-status" style="font-size: 0.8rem; color: #888;">Loading sample.csv...</p>
+            
+            <div class="chart-wrapper" style="height: 250px; margin: 10px 0;">
+                <canvas id="historyChart"></canvas>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closeModal('historyModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- NAVIGATION ---
+        function switchPage(pageId, navItem) {
+            document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            navItem.classList.add('active');
+        }
+
+        // --- CORE LOGIC ---
+        const socket = io('http://127.0.0.1:5001'); 
+        const dateEl = document.getElementById('system-date');
+        dateEl.innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
+
+        let lastAlertTime = 0;
+        
+        socket.on('system_update', (data) => {
+            const s = data.sensors;
+            const sys = data.system;
+
+            document.getElementById('soil-val').innerText = s.soil + "%";
+            document.getElementById('light-val').innerText = s.light + " lx";
+            document.getElementById('temp-val').innerText = s.temp + "°C";
+            document.getElementById('npk-val').innerText = s.npk;
+            document.getElementById('battery-txt').innerText = sys.battery_level + "%";
+
+            if(sys.pump_active) document.getElementById('mainWaterBtn').classList.add('active');
+            else document.getElementById('mainWaterBtn').classList.remove('active');
+
+            toggleWarning('card-temp', s.temp > 35);
+            toggleWarning('card-soil', s.soil < 20);
+
+            const now = Date.now();
+            if (now - lastAlertTime > 60000) { 
+                if (s.temp > 35) { addNotification('warning', 'High Temp', `Temp is ${s.temp}°C.`); lastAlertTime = now; }
+                else if (s.soil < 20) { addNotification('info', 'Water Low', 'Soil moisture critical.'); lastAlertTime = now; }
+                else if (sys.battery_level < 20) { addNotification('critical', 'Low Battery', 'System low power.'); lastAlertTime = now; }
+            }
+
+            updateChart(s.soil);
+        });
+
+        function toggleWarning(id, isActive) {
+            const el = document.getElementById(id);
+            if(isActive) el.classList.add('warning-active');
+            else el.classList.remove('warning-active');
+        }
+
+        // --- MODAL FUNCTIONS ---
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        
+        function closeModal(id) { 
+            if(id) document.getElementById(id).style.display = 'none';
+            else {
+                document.getElementById('deviceModal').style.display = 'none';
+                resetConnectBtn();
+            }
+        }
+
+        function confirmWatering() {
+            closeModal('waterModal');
+            socket.emit('manual_control', { action: 'pump_on', duration: 5000 });
+            addNotification('info', 'Manual Watering', 'Pump activated for 5s.');
+        }
+
+        function connectDevice() {
+            const input = document.getElementById('deviceIdInput');
+            if(input.value.length < 3) return;
+
+            document.getElementById('btnText').style.display = 'none';
+            document.getElementById('btnSpinner').style.display = 'block';
+
+            setTimeout(() => {
+                closeModal('deviceModal');
+                addNotification('info', 'Device Added', `Linked to: ${input.value}`);
+                resetConnectBtn();
+            }, 1500);
+        }
+
+        function resetConnectBtn() {
+            document.getElementById('btnText').style.display = 'block';
+            document.getElementById('btnSpinner').style.display = 'none';
+            document.getElementById('deviceIdInput').value = '';
+        }
+
+        // --- HISTORY MODAL LOGIC (FIXED PARSING) ---
+        let historyChartInstance = null;
+
+        function openHistoryModal() {
+            document.getElementById('historyModal').style.display = 'flex';
+            loadHistoryData();
+        }
+
+        async function loadHistoryData() {
+            const statusEl = document.getElementById('csv-status');
+            statusEl.innerText = "Fetching sample.csv...";
+            
+            try {
+                const response = await fetch('sample.csv');
+                if (!response.ok) throw new Error("File not found");
+                
+                const data = await response.text();
+                statusEl.innerText = "Showing Data";
+                
+                // FIXED PARSING:
+                // Indices from sample.csv:
+                // 0: Timestamp, 1: Date, 2: Time, 3: Soil Moisture, ...
+                
+                const rows = data.split('\n').slice(1); // Skip header
+                const labels = [];
+                const values = [];
+
+                rows.forEach(row => {
+                    const cols = row.split(',');
+                    // Ensure row isn't empty and has enough columns
+                    if(cols.length >= 4 && cols[2] && cols[3]) {
+                        labels.push(cols[2]); // Column 2: Time (e.g. 08:00:00)
+                        values.push(parseFloat(cols[3])); // Column 3: Soil Moisture
+                    }
+                });
+
+                renderHistoryChart(labels, values);
+
+            } catch (error) {
+                console.error(error);
+                statusEl.innerText = "Error: sample.csv not found.";
+            }
+        }
+
+        function renderHistoryChart(labels, dataPoints) {
+            const ctx = document.getElementById('historyChart').getContext('2d');
+            
+            if (historyChartInstance) {
+                historyChartInstance.destroy();
+            }
+
+            historyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Soil Moisture (%)',
+                        data: dataPoints,
+                        backgroundColor: '#e3f2fd',
+                        hoverBackgroundColor: '#56ab2f',
+                        borderRadius: 5,
+                        barThickness: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: true, beginAtZero: true, grid: { borderDash: [5,5] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // --- NOTIFICATIONS ---
+        function addNotification(type, title, message) {
+            const container = document.getElementById('notification-container');
+            const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            let icon = 'info';
+            if(type==='critical') icon='error'; if(type==='warning') icon='warning';
+
+            const html = `
+                <div class="notif-item type-${type}">
+                    <div class="notif-icon"><span class="material-icons-round">${icon}</span></div>
+                    <div class="notif-content"><div class="notif-title">${title}</div><div class="notif-msg">${message}</div><div class="notif-time">${timeStr}</div></div>
+                </div>`;
+            container.insertAdjacentHTML('afterbegin', html);
+        }
+        function clearNotifications() { document.getElementById('notification-container').innerHTML = ''; }
+
+        // --- REAL-TIME CHART ---
+        const ctx = document.getElementById('plantChart').getContext('2d');
+        const plantChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Soil Moisture (%)',
+                    data: [],
+                    borderColor: '#56ab2f',
+                    backgroundColor: 'rgba(86, 171, 47, 0.1)',
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { font: { family: "'Poppins', sans-serif" }, usePointStyle: true } },
+                    tooltip: { enabled: true, mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { display: false },
+                    y: { display: true, min: 0, max: 100, grid: { borderDash: [5, 5], color: '#f0f0f0' } }
+                }
+            }
+        });
+
+        function updateChart(val) {
+            if (plantChart.data.labels.length > 15) { 
+                plantChart.data.labels.shift(); 
+                plantChart.data.datasets[0].data.shift(); 
+            }
+            const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            plantChart.data.labels.push(timeStr); 
+            plantChart.data.datasets[0].data.push(val); 
+            plantChart.update();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Willow Digital Twin</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Theme Variables from Dashboard */
+            --primary: #56ab2f; 
+            --primary-dark: #3b8d18;
+            --bg-color: #f2f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1a1d1f;
+            --text-sub: #6f767e;
+            --danger: #ff6b6b;
+            --warning: #feca57;
+            --blue: #54a0ff;
+            --shadow: 0 8px 24px rgba(0,0,0,0.05);
+            --radius: 24px;
+            
+            /* Circuit Specifics */
+            --pcb-green: #2e4d32; /* A slightly softer, modern PCB green */
+            --terminal-bg: #1e1e1e;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 25px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* --- LEFT PANEL: CONTROLS --- */
+        .control-panel {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 30px;
+            height: fit-content;
+        }
+
+        .header { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .header-badge { font-size: 0.7rem; background: #e3f2fd; color: var(--blue); padding: 4px 10px; border-radius: 12px; font-weight: 600; }
+
+        .section-label {
+            font-size: 0.85rem; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 1px;
+            margin-top: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;
+        }
+
+        .input-group { margin-bottom: 18px; }
+        .input-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; font-weight: 500; }
+        .val-display { color: var(--primary); font-weight: 600; }
+
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            appearance: none; -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer;
+        }
+        input[type=range]:focus { outline: none; }
+        
+        /* Webkit Slider Track */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 8px; background: #eef1f4; border-radius: 10px;
+        }
+        /* Webkit Slider Thumb */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: var(--primary); border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            margin-top: -6px; transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+
+        /* --- RIGHT PANEL: VISUALIZATION (PCB) --- */
+        .vis-panel {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 10px; /* Small padding like a bezel */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pcb-board {
+            background-color: var(--pcb-green);
+            flex: 1;
+            border-radius: 16px;
+            position: relative;
+            padding: 40px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: auto auto auto;
+            gap: 20px;
+            /* PCB Pattern overlay */
+            background-image: radial-gradient(#3a6340 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 4px solid #253d28;
+        }
+
+        /* Screws */
+        .screw { position: absolute; width: 16px; height: 16px; background: #bdc3c7; border-radius: 50%; border: 1px solid #7f8c8d; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+        .screw::after { content: ''; width: 10px; height: 2px; background: #7f8c8d; transform: rotate(45deg); }
+        .tl { top: 15px; left: 15px; } .tr { top: 15px; right: 15px; }
+        .bl { bottom: 15px; left: 15px; } .br { bottom: 15px; right: 15px; }
+
+        /* Component: LCD */
+        .lcd-container {
+            grid-column: span 2;
+            background: #76c61d;
+            border: 8px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #111;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 5px;
+        }
+
+        /* Component: NPK Box */
+        .npk-box {
+            grid-column: span 2;
+            background: #f0f3f5;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-around;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .npk-item { text-align: center; font-family: monospace; }
+        .npk-lbl { font-size: 0.7rem; color: #666; font-weight: bold; }
+        .npk-val { font-size: 1.1rem; color: #333; font-weight: bold; }
+
+        /* Component: LEDs */
+        .led-strip {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 30px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .led { width: 24px; height: 24px; border-radius: 50%; background: #444; border: 2px solid #222; transition: 0.2s; }
+        .led.green.on { background: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        .led.yellow.on { background: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
+        .led.red.on { background: #ff0000; box-shadow: 0 0 15px #ff0000; }
+
+        /* Component: Pump */
+        .pump-unit {
+            background: #333;
+            border-radius: 12px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 10px;
+            border: 2px solid #555;
+            color: #888;
+        }
+        .fan-blade { font-size: 40px; transition: 0.3s; }
+        .pump-unit.active .fan-blade { color: var(--blue); animation: spin 0.6s linear infinite; }
+        .pump-label { font-size: 0.7rem; margin-top: 5px; font-weight: 600; text-transform: uppercase; }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Component: Terminal (Brain) */
+        .terminal-window {
+            grid-column: span 2;
+            background: var(--terminal-bg);
+            border-radius: 8px;
+            border: 1px solid #444;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            display: flex; flex-direction: column;
+            gap: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+        .term-header { font-size: 0.7rem; color: #888; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; letter-spacing: 1px;}
+        .term-line { display: flex; gap: 10px; font-size: 0.9rem; }
+        .prompt { color: var(--primary); }
+        .cmd-output { color: #fff; }
+
+        /* Status Bar */
+        .status-bar {
+            margin-top: 20px;
+            background: #fff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            border: 1px solid #eee;
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; display: inline-block; margin-right: 6px; }
+        .connected .status-dot { background: var(--primary); box-shadow: 0 0 5px var(--primary); }
+        .disconnected .status-dot { background: var(--danger); }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .circuit-board { min-height: 500px; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="main-layout">
+        
+        <!-- LEFT: SIMULATOR CONTROLS -->
+        <div class="control-panel">
+            <div class="header">
+                <h1>
+                    <span class="material-icons-round" style="color:var(--primary);">settings_input_component</span>
+                    Inputs
+                    <span class="header-badge">SIMULATOR</span>
+                </h1>
+                <p style="margin:5px 0 0 0; font-size:0.85rem; color:var(--text-sub);">Adjust sliders to simulate sensor data.</p>
+            </div>
+
+            <div class="section-label">
+                <span class="material-icons-round" style="font-size:16px">landscape</span> Environment
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <label>Soil Moisture</label>
+                    <span id="soil-val" class="val-display">30%</span>
+                </div>
+                <input type="range" id="soil-sensor" min="0" max="1023" value="300">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <label>Light Intensity</label>
+                    <span id="light-val" class="val-display">50%</span>
+                </div>
+                <input type="range" id="light-sensor" min="0" max="1023" value="500">
+            </div>
+
+            <div class="input-group">
+                <div class="input-header">
+                    <label>Temperature</label>
+                    <span id="temp-val" class="val-display">25°C</span>
+                </div>
+                <!-- TMP36 Logic maintained -->
+                <input type="range" id="temp-sensor" min="-40" max="125" step="0.5" value="25">
+            </div>
+
+            <div class="section-label">
+                <span class="material-icons-round" style="font-size:16px">science</span> Nutrients (NPK)
+            </div>
+
+            <div class="input-group">
+                <div class="input-header"><label>Nitrogen (N)</label><span id="n-val" class="val-display">40</span></div>
+                <input type="range" id="n-sensor" max="255" value="40">
+            </div>
+            <div class="input-group">
+                <div class="input-header"><label>Phosphorus (P)</label><span id="p-val" class="val-display">30</span></div>
+                <input type="range" id="p-sensor" max="255" value="30">
+            </div>
+            <div class="input-group">
+                <div class="input-header"><label>Potassium (K)</label><span id="k-val" class="val-display">50</span></div>
+                <input type="range" id="k-sensor" max="255" value="50">
+            </div>
+        </div>
+
+        <!-- RIGHT: DIGITAL TWIN VISUALIZATION -->
+        <div class="vis-panel">
+            <div class="header" style="margin: 15px 15px 10px 15px; border:none; padding:0;">
+                <h1>
+                    <span class="material-icons-round" style="color:var(--text-main);">memory</span>
+                    Digital Twin
+                </h1>
+            </div>
+
+            <div class="pcb-board">
+                <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+
+                <!-- LCD -->
+                <div class="lcd-container">
+                    <div id="lcd-line-1">M:--% L:--%</div>
+                    <div id="lcd-line-2">T:--C</div>
+                </div>
+
+                <!-- NPK -->
+                <div class="npk-box">
+                    <div class="npk-item"><div class="npk-lbl">NITROGEN</div><div class="npk-val" id="vis-n">0</div></div>
+                    <div class="npk-item" style="border-left:1px solid #ddd; border-right:1px solid #ddd; padding:0 15px"><div class="npk-lbl">PHOSPHORUS</div><div class="npk-val" id="vis-p">0</div></div>
+                    <div class="npk-item"><div class="npk-lbl">POTASSIUM</div><div class="npk-val" id="vis-k">0</div></div>
+                </div>
+
+                <!-- PUMP -->
+                <div class="pump-unit" id="pump-vis">
+                    <span class="material-icons-round fan-blade">ac_unit</span>
+                    <div class="pump-label">PUMP RELAY</div>
+                </div>
+
+                <!-- LEDs -->
+                <div class="led-strip">
+                    <div id="led-green" class="led green"></div>
+                    <div id="led-yellow" class="led yellow"></div>
+                    <div id="led-red" class="led red"></div>
+                </div>
+
+                <!-- TERMINAL -->
+                <div class="terminal-window">
+                    <div class="term-header">WILLOW_CORE_V1.2 // SERIAL_MONITOR</div>
+                    <div class="term-line">
+                        <span class="prompt">> STATE:</span>
+                        <span class="cmd-output" id="ml-decision" style="color:var(--primary);">Initializing...</span>
+                    </div>
+                    <div class="term-line">
+                        <span class="prompt">> MSG:</span>
+                        <span class="cmd-output" id="ml-alert">System Normal</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="status-bar" id="status-container">
+                <div style="display:flex; align-items:center;">
+                    <span class="status-dot"></span>
+                    <span id="conn-text">Connecting...</span>
+                </div>
+                <div>Port: 5001</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. CONNECT TO BACKEND
+        const socket = io('http://127.0.0.1:5001');
+        const statusContainer = document.getElementById('status-container');
+        const connText = document.getElementById('conn-text');
+
+        socket.on('connect', () => { 
+            statusContainer.classList.add('connected');
+            statusContainer.classList.remove('disconnected');
+            connText.innerText = "Socket Connected"; 
+        });
+        
+        socket.on('disconnect', () => { 
+            statusContainer.classList.add('disconnected');
+            statusContainer.classList.remove('connected');
+            connText.innerText = "Disconnected"; 
+        });
+
+        // 2. LISTEN FOR SERVER DECISIONS (Digital Twin Feedback)
+        const pumpVis = document.getElementById('pump-vis');
+        const mlDecision = document.getElementById('ml-decision');
+        const mlAlert = document.getElementById('ml-alert');
+
+        socket.on('system_update', (data) => {
+            // A. Update Pump Graphic
+            if(data.system.pump_active) {
+                pumpVis.classList.add('active'); 
+            } else {
+                pumpVis.classList.remove('active');
+            }
+
+            // B. Update Terminal Text
+            mlDecision.innerText = data.system.algorithm_state.toUpperCase();
+            mlAlert.innerText = data.system.alert;
+            
+            // Terminal Color Logic
+            if(data.system.algorithm_state.includes("Critical")) {
+                mlDecision.style.color = "var(--blue)"; 
+            } else if (data.system.algorithm_state.includes("Lock") || data.system.algorithm_state.includes("Risk")) {
+                mlDecision.style.color = "var(--danger)";
+            } else {
+                mlDecision.style.color = "var(--primary)";
+            }
+        });
+
+        // 3. SEND SENSOR DATA (Local Logic)
+        const ui = {
+            soil: document.getElementById('soil-sensor'),
+            light: document.getElementById('light-sensor'),
+            temp: document.getElementById('temp-sensor'),
+            n: document.getElementById('n-sensor'),
+            p: document.getElementById('p-sensor'),
+            k: document.getElementById('k-sensor')
+        };
+
+        function map(x, in_min, in_max, out_min, out_max) {
+            return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+        }
+
+        function updateLoop() {
+            // Read Inputs
+            let rawSoil = parseInt(ui.soil.value);
+            let rawLight = parseInt(ui.light.value);
+            let rawTempC = parseFloat(ui.temp.value);
+            let valN = parseInt(ui.n.value);
+            let valP = parseInt(ui.p.value);
+            let valK = parseInt(ui.k.value);
+
+            // Mapping
+            let soilPercent = map(rawSoil, 1023, 0, 0, 100);
+            let lightPercent = map(rawLight, 0, 1023, 0, 100);
+
+            // Update Input Labels
+            document.getElementById('soil-val').innerText = `${Math.round(soilPercent)}%`;
+            document.getElementById('light-val').innerText = `${Math.round(lightPercent)}%`;
+            document.getElementById('temp-val').innerText = `${rawTempC}°C`;
+            document.getElementById('n-val').innerText = valN;
+            document.getElementById('p-val').innerText = valP;
+            document.getElementById('k-val').innerText = valK;
+
+            // Update Visuals (LCD & NPK)
+            document.getElementById('lcd-line-1').innerText = `M:${Math.floor(soilPercent)}% L:${Math.floor(lightPercent)}%`;
+            document.getElementById('lcd-line-2').innerText = `T:${Math.floor(rawTempC)}C`;
+            
+            document.getElementById('vis-n').innerText = valN;
+            document.getElementById('vis-p').innerText = valP;
+            document.getElementById('vis-k').innerText = valK;
+
+            // LEDs (Local Edge Logic)
+            const ledG = document.getElementById('led-green');
+            const ledY = document.getElementById('led-yellow');
+            const ledR = document.getElementById('led-red');
+            
+            ledG.className = "led green"; ledY.className = "led yellow"; ledR.className = "led red";
+
+            let soilBad = (soilPercent < 20) || (soilPercent > 60);
+            let lightBad = (lightPercent < 30) || (lightPercent > 80);
+            let tempBad = (rawTempC < 18) || (rawTempC > 32);
+
+            if (!soilBad && !lightBad && !tempBad) ledG.classList.add('on');
+            else if ((soilBad && !lightBad && !tempBad) || (!soilBad && lightBad && !tempBad) || (!soilBad && !lightBad && tempBad)) ledY.classList.add('on');
+            else ledR.classList.add('on');
+
+            // Send to Backend
+            socket.emit('sensor_data', {
+                soil_moisture: soilPercent,
+                light_intensity: lightPercent,
+                temperature: rawTempC,
+                nitrogen: valN,
+                phosphorus: valP,
+                potassium: valK
+            });
+        }
+
+        setInterval(updateLoop, 200);
+
+    </script>
+</body>
+</html>
