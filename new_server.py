@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 # --- CONFIGURATION ---
 # Using the key you provided. If it fails, it falls back to "Mock" mode automatically.
-OPENWEATHER_API_KEY = "060a901ff2e07f10c7fb3864de313861" 
+OPENWEATHER_API_KEY = "" 
 CITY = "Kuala Lumpur" 
 WEATHER_API_URL = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={OPENWEATHER_API_KEY}&units=metric"
 
